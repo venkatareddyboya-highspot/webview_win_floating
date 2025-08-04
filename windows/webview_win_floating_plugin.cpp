@@ -267,6 +267,32 @@ void WebviewWinFloatingPlugin::HandleMethodCall(
     HRESULT hr = webview->clearCookies();
     result->Success(flutter::EncodableValue(SUCCEEDED(hr)));
 
+  } else if (method_call.method_name().compare("setCookie") == 0) {
+    auto name = std::get<std::string>(arguments[flutter::EncodableValue("name")]);
+    auto value = std::get<std::string>(arguments[flutter::EncodableValue("value")]);
+    auto domain = std::get<std::string>(arguments[flutter::EncodableValue("domain")]);
+    auto path = std::get<std::string>(arguments[flutter::EncodableValue("path")]);
+    
+    std::wstring wname = std::wstring(name.begin(), name.end());
+    std::wstring wvalue = std::wstring(value.begin(), value.end());
+    std::wstring wdomain = std::wstring(domain.begin(), domain.end());
+    std::wstring wpath = std::wstring(path.begin(), path.end());
+    
+    HRESULT hr = webview->setCookie(wname.c_str(), wvalue.c_str(), wdomain.c_str(), wpath.c_str());
+    result->Success(flutter::EncodableValue(SUCCEEDED(hr)));
+
+  } else if (method_call.method_name().compare("getCookies") == 0) {
+    auto uri = std::get<std::string>(arguments[flutter::EncodableValue("uri")]);
+    std::wstring wuri = std::wstring(uri.begin(), uri.end());
+    
+    // Create a shared result for async callback
+    auto sharedResult = std::make_shared<std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>>>(std::move(result));
+    
+    webview->getCookies(wuri.c_str(), [sharedResult](std::string cookiesJson) {
+        (*sharedResult)->Success(flutter::EncodableValue(cookiesJson));
+    });
+    return; // Return early since we'll call Success() in the callback
+
   } else if (method_call.method_name().compare("requestFocus") == 0) {
     webview->requestFocus(true);
     result->Success();

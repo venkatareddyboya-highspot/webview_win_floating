@@ -66,8 +66,7 @@ class MethodChannelWebviewWinFloating extends WebviewWinFloatingPlatform {
         String url = call.arguments["url"]!;
         int kind = call.arguments["kind"]!;
         int deferralId = call.arguments["deferralId"]!;
-        controller.notifyAskPermission_(
-            url, WinWebViewPermissionResourceType.values[kind], deferralId);
+        controller.notifyAskPermission_(url, WinWebViewPermissionResourceType.values[kind], deferralId);
       } else {
         assert(false, "unknown call from native: ${call.method}");
       }
@@ -85,28 +84,20 @@ class MethodChannelWebviewWinFloating extends WebviewWinFloatingPlatform {
   }
 
   @override
-  Future<bool> create(int webviewId,
-      {String? initialUrl, String? userDataFolder}) async {
-    return await methodChannel.invokeMethod<bool>('create', {
-          "webviewId": webviewId,
-          "url": initialUrl ?? "",
-          "userDataFolder": userDataFolder ?? ""
-        }) ??
+  Future<bool> create(int webviewId, {String? initialUrl, String? userDataFolder}) async {
+    return await methodChannel.invokeMethod<bool>(
+            'create', {"webviewId": webviewId, "url": initialUrl ?? "", "userDataFolder": userDataFolder ?? ""}) ??
         false;
   }
 
   @override
-  Future<void> setHasNavigationDecision(
-      int webviewId, bool hasNavigationDecision) async {
-    return await methodChannel.invokeMethod<void>('setHasNavigationDecision', {
-      "webviewId": webviewId,
-      "hasNavigationDecision": hasNavigationDecision
-    });
+  Future<void> setHasNavigationDecision(int webviewId, bool hasNavigationDecision) async {
+    return await methodChannel.invokeMethod<void>(
+        'setHasNavigationDecision', {"webviewId": webviewId, "hasNavigationDecision": hasNavigationDecision});
   }
 
   @override
-  Future<void> updateBounds(
-      int webviewId, Offset offset, Size size, double devicePixelRatio) async {
+  Future<void> updateBounds(int webviewId, Offset offset, Size size, double devicePixelRatio) async {
     await methodChannel.invokeMethod<bool>('updateBounds', {
       "webviewId": webviewId,
       "left": (offset.dx * devicePixelRatio).toInt(),
@@ -118,84 +109,69 @@ class MethodChannelWebviewWinFloating extends WebviewWinFloatingPlatform {
 
   @override
   Future<void> loadUrl(int webviewId, String url) async {
-    await methodChannel
-        .invokeMethod<bool>('loadUrl', {"webviewId": webviewId, "url": url});
+    await methodChannel.invokeMethod<bool>('loadUrl', {"webviewId": webviewId, "url": url});
   }
 
   @override
   Future<void> loadHtmlString(int webviewId, String html) async {
-    await methodChannel.invokeMethod<bool>(
-        'loadHtmlString', {"webviewId": webviewId, "html": html});
+    await methodChannel.invokeMethod<bool>('loadHtmlString', {"webviewId": webviewId, "html": html});
   }
 
   @override
   Future<void> runJavaScript(int webviewId, String javaScriptString) async {
-    await methodChannel.invokeMethod<void>('runJavascript', {
-      "webviewId": webviewId,
-      "javaScriptString": javaScriptString,
-      "ignoreResult": true
-    });
+    await methodChannel.invokeMethod<void>(
+        'runJavascript', {"webviewId": webviewId, "javaScriptString": javaScriptString, "ignoreResult": true});
   }
 
   @override
-  Future<String> runJavaScriptReturningResult(
-      int webviewId, String javaScriptString) async {
-    return await methodChannel.invokeMethod<String>('runJavascript', {
-          "webviewId": webviewId,
-          "javaScriptString": javaScriptString,
-          "ignoreResult": false
-        }) ??
+  Future<String> runJavaScriptReturningResult(int webviewId, String javaScriptString) async {
+    return await methodChannel.invokeMethod<String>(
+            'runJavascript', {"webviewId": webviewId, "javaScriptString": javaScriptString, "ignoreResult": false}) ??
         "";
   }
 
   @override
   Future<void> addScriptChannelByName(int webviewId, String channelName) {
-    return methodChannel.invokeMethod<void>('addScriptChannelByName',
-        {"webviewId": webviewId, "channelName": channelName});
+    return methodChannel
+        .invokeMethod<void>('addScriptChannelByName', {"webviewId": webviewId, "channelName": channelName});
   }
 
   @override
   Future<void> removeScriptChannelByName(int webviewId, String channelName) {
-    return methodChannel.invokeMethod<void>('removeScriptChannelByName',
-        {"webviewId": webviewId, "channelName": channelName});
+    return methodChannel
+        .invokeMethod<void>('removeScriptChannelByName', {"webviewId": webviewId, "channelName": channelName});
   }
 
   @override
   Future<void> setFullScreen(int webviewId, bool isFullScreen) async {
-    await methodChannel.invokeMethod<bool>('setFullScreen',
-        {"webviewId": webviewId, "isFullScreen": isFullScreen});
+    await methodChannel.invokeMethod<bool>('setFullScreen', {"webviewId": webviewId, "isFullScreen": isFullScreen});
   }
 
   @override
   Future<void> setVisibility(int webviewId, bool isVisible) async {
-    await methodChannel.invokeMethod<bool>(
-        'setVisibility', {"webviewId": webviewId, "isVisible": isVisible});
+    await methodChannel.invokeMethod<bool>('setVisibility', {"webviewId": webviewId, "isVisible": isVisible});
   }
 
   @override
   Future<void> enableJavascript(int webviewId, bool isEnable) async {
-    await methodChannel.invokeMethod<bool>(
-        'enableJavascript', {"webviewId": webviewId, "isEnable": isEnable});
+    await methodChannel.invokeMethod<bool>('enableJavascript', {"webviewId": webviewId, "isEnable": isEnable});
   }
 
   @override
   Future<bool> setUserAgent(int webviewId, String userAgent) async {
-    bool? b = await methodChannel.invokeMethod<bool?>(
-        'setUserAgent', {"webviewId": webviewId, "userAgent": userAgent});
+    bool? b = await methodChannel.invokeMethod<bool?>('setUserAgent', {"webviewId": webviewId, "userAgent": userAgent});
     return b!;
   }
 
   @override
   Future<bool> canGoBack(int webviewId) async {
-    bool? b = await methodChannel
-        .invokeMethod<bool?>('canGoBack', {"webviewId": webviewId});
+    bool? b = await methodChannel.invokeMethod<bool?>('canGoBack', {"webviewId": webviewId});
     return b!;
   }
 
   @override
   Future<bool> canGoForward(int webviewId) async {
-    bool? b = await methodChannel
-        .invokeMethod<bool?>('canGoForward', {"webviewId": webviewId});
+    bool? b = await methodChannel.invokeMethod<bool?>('canGoForward', {"webviewId": webviewId});
     return b!;
   }
 
@@ -206,8 +182,7 @@ class MethodChannelWebviewWinFloating extends WebviewWinFloatingPlatform {
 
   @override
   Future<void> goForward(int webviewId) async {
-    await methodChannel
-        .invokeMethod<void>('goForward', {"webviewId": webviewId});
+    await methodChannel.invokeMethod<void>('goForward', {"webviewId": webviewId});
   }
 
   @override
@@ -217,33 +192,49 @@ class MethodChannelWebviewWinFloating extends WebviewWinFloatingPlatform {
 
   @override
   Future<void> cancelNavigate(int webviewId) async {
-    await methodChannel
-        .invokeMethod<void>('cancelNavigate', {"webviewId": webviewId});
+    await methodChannel.invokeMethod<void>('cancelNavigate', {"webviewId": webviewId});
   }
 
   @override
   Future<void> clearCache(int webviewId) async {
-    await methodChannel
-        .invokeMethod<void>('clearCache', {"webviewId": webviewId});
+    await methodChannel.invokeMethod<void>('clearCache', {"webviewId": webviewId});
   }
 
   @override
   Future<bool> clearCookies(int webviewId) async {
-    bool? b = await methodChannel
-        .invokeMethod<bool?>('clearCookies', {"webviewId": webviewId});
+    bool? b = await methodChannel.invokeMethod<bool?>('clearCookies', {"webviewId": webviewId});
     return b!;
   }
 
   @override
+  Future<bool> setCookie(int webviewId, String name, String value, String domain, String path) async {
+    final result = await methodChannel.invokeMethod<bool?>('setCookie', {
+      "webviewId": webviewId,
+      "name": name,
+      "value": value,
+      "domain": domain,
+      "path": path,
+    });
+    return result ?? false;
+  }
+
+  @override
+  Future<String> getCookies(int webviewId, String uri) async {
+    final result = await methodChannel.invokeMethod<String?>('getCookies', {
+      "webviewId": webviewId,
+      "uri": uri,
+    });
+    return result ?? "[]";
+  }
+
+  @override
   Future<void> requestFocus(int webviewId) async {
-    await methodChannel
-        .invokeMethod<void>('requestFocus', {"webviewId": webviewId});
+    await methodChannel.invokeMethod<void>('requestFocus', {"webviewId": webviewId});
   }
 
   @override
   Future<void> setBackgroundColor(int webviewId, Color color) async {
-    await methodChannel.invokeMethod<void>(
-        'setBackgroundColor', {"webviewId": webviewId, "color": color.value});
+    await methodChannel.invokeMethod<void>('setBackgroundColor', {"webviewId": webviewId, "color": color.value});
   }
 
   @override
@@ -263,17 +254,13 @@ class MethodChannelWebviewWinFloating extends WebviewWinFloatingPlatform {
 
   @override
   Future<void> grantPermission(int webviewId, int deferralId, bool isGranted) {
-    return methodChannel.invokeMethod<void>('grantPermission', {
-      "webviewId": webviewId,
-      "deferralId": deferralId,
-      "isGranted": isGranted
-    });
+    return methodChannel.invokeMethod<void>(
+        'grantPermission', {"webviewId": webviewId, "deferralId": deferralId, "isGranted": isGranted});
   }
 
   @override
   Future<void> enableZoom(int webviewId, bool isEnable) async {
-    await methodChannel.invokeMethod<bool>(
-        'enableIsZoomControl', {"webviewId": webviewId, "isEnable": isEnable});
+    await methodChannel.invokeMethod<bool>('enableIsZoomControl', {"webviewId": webviewId, "isEnable": isEnable});
   }
 
   // ------------------------------------------------------------------------
@@ -282,13 +269,11 @@ class MethodChannelWebviewWinFloating extends WebviewWinFloatingPlatform {
 
   @override
   Future<void> openDevTools(int webviewId) {
-    return methodChannel
-        .invokeMethod<void>('openDevTools', {"webviewId": webviewId});
+    return methodChannel.invokeMethod<void>('openDevTools', {"webviewId": webviewId});
   }
 
   @override
   Future<void> enableStatusBar(int webviewId, bool isEnable) async {
-    await methodChannel.invokeMethod<bool>(
-        'enableStatusBar', {"webviewId": webviewId, "isEnable": isEnable});
+    await methodChannel.invokeMethod<bool>('enableStatusBar', {"webviewId": webviewId, "isEnable": isEnable});
   }
 }

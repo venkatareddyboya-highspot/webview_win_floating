@@ -83,6 +83,8 @@ public:
 
     HRESULT clearCache();
     HRESULT clearCookies();
+    HRESULT setCookie(LPCWSTR name, LPCWSTR value, LPCWSTR domain, LPCWSTR path);
+    HRESULT getCookies(LPCWSTR uri, std::function<void(std::string)> callback);
 
 	HRESULT suspend();
 	HRESULT resume();
@@ -588,6 +590,67 @@ HRESULT MyWebViewImpl::clearCookies()
     if (cookieManager == NULL) return E_FAIL;
 
     return cookieManager->DeleteAllCookies();
+}
+
+HRESULT MyWebViewImpl::setCookie(LPCWSTR name, LPCWSTR value, LPCWSTR domain, LPCWSTR path)
+{
+    wil::com_ptr<ICoreWebView2CookieManager> cookieManager;
+    auto webview2_2 = m_pWebview.try_query<ICoreWebView2_2>();
+    if (webview2_2 == NULL) return E_FAIL;
+
+    webview2_2->get_CookieManager(&cookieManager);
+    if (cookieManager == NULL) return E_FAIL;
+
+    wil::com_ptr<ICoreWebView2Cookie> cookie;
+    HRESULT hr = cookieManager->CreateCookie(name, value, domain, path, &cookie);
+    if (FAILED(hr)) return hr;
+
+    return cookieManager->AddOrUpdateCookie(cookie.get());
+}
+
+HRESULT MyWebViewImpl::getCookies(LPCWSTR uri, std::function<void(std::string)> callback)
+{
+    wil::com_ptr<ICoreWebView2CookieManager> cookieManager;
+    auto webview2_2 = m_pWebview.try_query<ICoreWebView2_2>();
+    if (webview2_2 == NULL) return E_FAIL;
+
+    webview2_2->get_CookieManager(&cookieManager);
+    if (cookieManager == NULL) return E_FAIL;
+
+    return cookieManager->GetCookies(uri, 
+        Callback<ICoreWebView2GetCookiesCompletedHandler>(
+            [callback](HRESULT error, ICoreWebView2CookieList* cookieList) -> HRESULT {
+                if (FAILED(error)) {
+                    callback("[]");
+                    return error;
+                }
+                
+                // Convert cookie list to JSON string
+                UINT count = 0;
+                cookieList->get_Count(&count);
+                
+                std::string result = "[";
+                for (UINT i = 0; i < count; i++) {
+                    wil::com_ptr<ICoreWebView2Cookie> cookie;
+                    cookieList->GetValueAtIndex(i, &cookie);
+                    
+                    wil::unique_cotaskmem_string name, value, domain, path;
+                    cookie->get_Name(&name);
+                    cookie->get_Value(&value);
+                    cookie->get_Domain(&domain);
+                    cookie->get_Path(&path);
+                    
+                    if (i > 0) result += ",";
+                    result += "{\"name\":\"" + utf8_encode(name.get()) + 
+                             "\",\"value\":\"" + utf8_encode(value.get()) +
+                             "\",\"domain\":\"" + utf8_encode(domain.get()) +
+                             "\",\"path\":\"" + utf8_encode(path.get()) + "\"}";
+                }
+                result += "]";
+                
+                callback(result);
+                return S_OK;
+            }).Get());
 }
 
 HRESULT MyWebViewImpl::suspend()

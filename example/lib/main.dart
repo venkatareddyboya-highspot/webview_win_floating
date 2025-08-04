@@ -60,22 +60,78 @@ class _MyAppState extends State<MyApp> {
         print("onPageStarted: $url");
       },
       onPageFinished: (url) => print("onPageFinished: $url"),
-      onWebResourceError: (error) =>
-          print("onWebResourceError: ${error.description}"),
+      onWebResourceError: (error) => print("onWebResourceError: ${error.description}"),
     ));
 
     controller.addJavaScriptChannel("Flutter", onMessageReceived: (message) {
       print("js -> dart : ${message.message}");
     });
     //controller.loadRequest(Uri.parse("https://www.google.com"));
-    controller.loadRequest(Uri.parse(
-        "https://www.bennish.net/web-notifications.html")); // javascript notification test
+    controller.loadRequest(Uri.parse("https://www.bennish.net/web-notifications.html")); // javascript notification test
     //controller.loadRequest(Uri.parse("https://www.bnext.com.tw"));
     //controller.loadRequest(Uri.parse("https://www.w3schools.com/tags/tryit.asp?filename=tryhtml_a_target"));
   }
 
   void testJavascript() {
     controller.runJavaScript("Flutter.postMessage('Chinese 中文')");
+  }
+
+  void testSetCookie() async {
+    try {
+      // Method 1: Using the controller directly (Windows-specific)
+      if (controller is WinWebViewController) {
+        final winController = controller as WinWebViewController;
+        bool success = await winController.setCookie(
+            'test_cookie', 'test_value_${DateTime.now().millisecondsSinceEpoch}', '.bennish.net', '/');
+        print("Set cookie using controller: $success");
+      }
+
+      // Method 2: Using WebViewCookieManager (cross-platform)
+      final cookieManager = WebViewCookieManager();
+      await cookieManager.setCookie(WebViewCookie(
+        name: 'flutter_cookie',
+        value: 'flutter_value_${DateTime.now().millisecondsSinceEpoch}',
+        domain: '.bennish.net',
+        path: '/',
+      ));
+      print("Set cookie using WebViewCookieManager");
+
+      // Reload to see cookies in action
+      controller.reload();
+    } catch (e) {
+      print("Error setting cookies: $e");
+    }
+  }
+
+  void testGetCookies() async {
+    try {
+      if (controller is WinWebViewController) {
+        final winController = controller as WinWebViewController;
+        final cookies = await winController.getCookies("https://www.bennish.net");
+        print("Current cookies: $cookies");
+
+        // Show cookies in a dialog
+        if (mounted) {
+          showDialog(
+            context: context,
+            builder: (context) => AlertDialog(
+              title: Text("Cookies"),
+              content: Text(cookies.isNotEmpty
+                  ? cookies.map((c) => "${c['name']}: ${c['value']}").join('\n')
+                  : "No cookies found"),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: Text("OK"),
+                ),
+              ],
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      print("Error getting cookies: $e");
+    }
   }
 
   @override
@@ -92,6 +148,8 @@ class _MyAppState extends State<MyApp> {
     );
     Widget buttonRow = Row(children: [
       MyCircleButton(icon: Icons.javascript, onTap: testJavascript),
+      MyCircleButton(icon: Icons.cookie, onTap: testSetCookie),
+      MyCircleButton(icon: Icons.list, onTap: testGetCookies),
       MyCircleButton(icon: Icons.arrow_back, onTap: controller.goBack),
       MyCircleButton(icon: Icons.arrow_forward, onTap: controller.goForward),
 /*
@@ -110,8 +168,7 @@ class _MyAppState extends State<MyApp> {
       Expanded(child: urlBox),
     ]);
 
-    Widget body =
-        Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+    Widget body = Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
       buttonRow,
       Expanded(child: WebViewWidget(controller: controller)),
     ]);
@@ -125,8 +182,7 @@ class MyCircleButton extends StatelessWidget {
   final IconData icon;
   final double size;
 
-  const MyCircleButton(
-      {super.key, required this.onTap, required this.icon, this.size = 32});
+  const MyCircleButton({super.key, required this.onTap, required this.icon, this.size = 32});
 
   @override
   Widget build(BuildContext context) {
