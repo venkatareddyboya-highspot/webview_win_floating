@@ -150,7 +150,7 @@ void WebviewWinFloatingPlugin::HandleMethodCall(
       arguments[flutter::EncodableValue("webviewId")] = flutter::EncodableValue(webviewId);
       gMethodChannel->InvokeMethod("onHistoryChanged", std::make_unique<flutter::EncodableValue>(arguments));
     };
-    auto onAskPermission = [=](std::string url, int kind, int deferralId) -> void {
+auto onAskPermission = [=](std::string url, int kind, int deferralId) -> void {
       flutter::EncodableMap arguments;
       arguments[flutter::EncodableValue("webviewId")] = flutter::EncodableValue(webviewId);
       arguments[flutter::EncodableValue("url")] = flutter::EncodableValue(url);
@@ -318,7 +318,7 @@ void WebviewWinFloatingPlugin::HandleMethodCall(
       std::cout << "[webview] native dispose: id = " << webviewId << std::endl;
     }
     result->Success(flutter::EncodableValue(true));
-  } else if (method_call.method_name().compare("grantPermission") == 0) {
+} else if (method_call.method_name().compare("grantPermission") == 0) {
     auto deferralId = std::get<int>(arguments[flutter::EncodableValue("deferralId")]);
     auto isGranted = std::get<bool>(arguments[flutter::EncodableValue("isGranted")]);
     webview->grantPermission(deferralId, isGranted);

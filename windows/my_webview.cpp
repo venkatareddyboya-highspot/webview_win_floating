@@ -346,7 +346,7 @@ MyWebViewImpl::MyWebViewImpl(HWND hWnd,
                         })
                     .Get(), nullptr);
 
-                hr = m_pWebview->add_PermissionRequested(
+hr = m_pWebview->add_PermissionRequested(
                     Callback<ICoreWebView2PermissionRequestedEventHandler>(
                         [=](ICoreWebView2* sender, ICoreWebView2PermissionRequestedEventArgs* args) -> HRESULT {
                             askFlutterPermission(args, onAskPermission);                           
@@ -365,19 +365,35 @@ void MyWebViewImpl::askFlutterPermission(wil::com_ptr<ICoreWebView2PermissionReq
     COREWEBVIEW2_PERMISSION_KIND kind;                           
     wil::unique_cotaskmem_string uri;
 
-    args->get_PermissionKind(&kind);
-    args->get_Uri(&uri);
-    args->GetDeferral(&deferral);
+    HRESULT hr = args->get_PermissionKind(&kind);
+    if (FAILED(hr)) {
+        return;
+    }
+    
+    hr = args->get_Uri(&uri);
+    if (FAILED(hr)) {
+        return;
+    }
+    
+    hr = args->GetDeferral(&deferral);
+    if (FAILED(hr)) {
+        return;
+    }
 
     int deferralId = ++lastPermissionDeferralId;
     permissionArgsMap[deferralId] = std::pair(args, deferral);
-    onAskPermission(utf8_encode(std::wstring(uri.get())), kind, deferralId);
+    
+    if (onAskPermission) {
+        onAskPermission(utf8_encode(std::wstring(uri.get())), kind, deferralId);
+    }
 }
 
 void MyWebViewImpl::grantPermission(int deferralId, BOOL isGranted)
 {
     auto it = permissionArgsMap.find(deferralId);
-    if (it == permissionArgsMap.end()) return; // not found
+    if (it == permissionArgsMap.end()) {
+        return; // not found
+    }
 
     auto pair = std::move(it->second);
     permissionArgsMap.erase(it);
