@@ -2,6 +2,7 @@
 
 #include <string>
 #include <functional>
+#include <vector>
 
 #include <windows.h>
 
@@ -11,6 +12,7 @@
 //#include <WebView2.h>
  
 typedef std::function<void(std::string url, int kind, int deferralId)> OnAskPermissionFunc;
+typedef std::function<void(std::string url)> OnUrlBlockedFunc;
 
 class MyWebView
 {
@@ -66,6 +68,12 @@ public:
 	virtual HRESULT resume() = 0;
 
 	virtual void grantPermission(int deferralId, BOOL isGranted) = 0;
+
+	virtual void setNavigationRules(
+		const std::vector<std::string>& allowedHosts,
+		const std::vector<std::string>& blockedHosts,
+		const std::vector<std::string>& blockedPatterns,
+		OnUrlBlockedFunc onUrlBlocked) = 0;
 
 	virtual void openDevTools() = 0;
 };

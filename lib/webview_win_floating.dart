@@ -151,6 +151,9 @@ class _WinWebViewWidgetState extends State<WinWebViewWidget> {
 
 int _gLastWebViewId = 0;
 
+/// Callback for when a URL is blocked by navigation rules
+typedef UrlBlockedCallback = void Function(String url);
+
 class WinWebViewController {
   final _webviewId = ++_gLastWebViewId;
   late Future<bool> _initFuture;
@@ -160,6 +163,7 @@ class WinWebViewController {
   String? _currentTitle;
   Color? _backgroundColor;
   void Function(WinWebViewPermissionRequest request)? _onPermissionRequest;
+  UrlBlockedCallback? _onUrlBlocked;
 
   static final Finalizer<int> _finalizer = Finalizer((id) {
     log("webview controller finalizer: $id");
@@ -173,6 +177,36 @@ class WinWebViewController {
     WebviewWinFloatingPlatform.instance.registerWebView(_webviewId, this);
     _initFuture =
         WebviewWinFloatingPlatform.instance.create(_webviewId, initialUrl: null, userDataFolder: userDataFolder);
+  }
+
+  /// Sets navigation rules for synchronous URL blocking.
+  /// This preserves navigation history unlike onNavigationRequest.
+  /// 
+  /// [allowedHosts] - List of host patterns to allow (e.g., ["highspot.com", "company.highspot.com"])
+  /// [blockedHosts] - List of host patterns to explicitly block (e.g., ["help.highspot.com"])
+  /// [blockedPatterns] - List of regex patterns to block (e.g., ["^file://.*", ".*/offline\$"])
+  /// [onUrlBlocked] - Callback when a URL is blocked (fire-and-forget notification)
+  Future<void> setNavigationRules({
+    List<String> allowedHosts = const [],
+    List<String> blockedHosts = const [],
+    List<String> blockedPatterns = const [],
+    UrlBlockedCallback? onUrlBlocked,
+  }) async {
+    _onUrlBlocked = onUrlBlocked;
+    await _initFuture;
+    await WebviewWinFloatingPlatform.instance.setNavigationRules(
+      _webviewId,
+      allowedHosts: allowedHosts,
+      blockedHosts: blockedHosts,
+      blockedPatterns: blockedPatterns,
+    );
+  }
+
+  /// Internal: Called when native blocks a URL
+  void notifyOnUrlBlocked_(String url) {
+    if (_onUrlBlocked != null) {
+      _onUrlBlocked!(url);
+    }
   }
 
   Future<void> setNavigationDelegate(WinNavigationDelegate delegate) async {

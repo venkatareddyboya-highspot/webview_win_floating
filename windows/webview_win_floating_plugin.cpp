@@ -177,6 +177,38 @@ auto onAskPermission = [=](std::string url, int kind, int deferralId) -> void {
     auto hasNavigationDecision = std::get<bool>(arguments[flutter::EncodableValue("hasNavigationDecision")]);
     webview->setHasNavigationDecision(hasNavigationDecision);
     result->Success();
+  } else if (method_call.method_name().compare("setNavigationRules") == 0) {
+    // Parse allowed hosts
+    std::vector<std::string> allowedHosts;
+    auto allowedHostsList = std::get<flutter::EncodableList>(arguments[flutter::EncodableValue("allowedHosts")]);
+    for (const auto& host : allowedHostsList) {
+      allowedHosts.push_back(std::get<std::string>(host));
+    }
+    
+    // Parse blocked hosts
+    std::vector<std::string> blockedHosts;
+    auto blockedHostsList = std::get<flutter::EncodableList>(arguments[flutter::EncodableValue("blockedHosts")]);
+    for (const auto& host : blockedHostsList) {
+      blockedHosts.push_back(std::get<std::string>(host));
+    }
+    
+    // Parse blocked patterns
+    std::vector<std::string> blockedPatterns;
+    auto blockedPatternsList = std::get<flutter::EncodableList>(arguments[flutter::EncodableValue("blockedPatterns")]);
+    for (const auto& pattern : blockedPatternsList) {
+      blockedPatterns.push_back(std::get<std::string>(pattern));
+    }
+    
+    // Create onUrlBlocked callback that notifies Dart
+    auto onUrlBlocked = [webviewId](std::string url) -> void {
+      flutter::EncodableMap arguments;
+      arguments[flutter::EncodableValue("webviewId")] = flutter::EncodableValue(webviewId);
+      arguments[flutter::EncodableValue("url")] = flutter::EncodableValue(url);
+      gMethodChannel->InvokeMethod("onUrlBlocked", std::make_unique<flutter::EncodableValue>(arguments));
+    };
+    
+    webview->setNavigationRules(allowedHosts, blockedHosts, blockedPatterns, onUrlBlocked);
+    result->Success();
   } else if (method_call.method_name().compare("updateBounds") == 0) {
     RECT bounds;
     bounds.left = std::get<int>(arguments[flutter::EncodableValue("left")]);

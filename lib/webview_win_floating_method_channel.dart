@@ -67,6 +67,9 @@ class MethodChannelWebviewWinFloating extends WebviewWinFloatingPlatform {
         int kind = call.arguments["kind"]!;
         int deferralId = call.arguments["deferralId"]!;
         controller.notifyAskPermission_(url, WinWebViewPermissionResourceType.values[kind], deferralId);
+      } else if (call.method == "onUrlBlocked") {
+        String url = call.arguments["url"]!;
+        controller.notifyOnUrlBlocked_(url);
       } else {
         assert(false, "unknown call from native: ${call.method}");
       }
@@ -94,6 +97,21 @@ class MethodChannelWebviewWinFloating extends WebviewWinFloatingPlatform {
   Future<void> setHasNavigationDecision(int webviewId, bool hasNavigationDecision) async {
     return await methodChannel.invokeMethod<void>(
         'setHasNavigationDecision', {"webviewId": webviewId, "hasNavigationDecision": hasNavigationDecision});
+  }
+
+  @override
+  Future<void> setNavigationRules(
+    int webviewId, {
+    required List<String> allowedHosts,
+    required List<String> blockedHosts,
+    required List<String> blockedPatterns,
+  }) async {
+    return await methodChannel.invokeMethod<void>('setNavigationRules', {
+      "webviewId": webviewId,
+      "allowedHosts": allowedHosts,
+      "blockedHosts": blockedHosts,
+      "blockedPatterns": blockedPatterns,
+    });
   }
 
   @override
