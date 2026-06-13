@@ -333,6 +333,23 @@ void WebviewWinFloatingPlugin::HandleMethodCall(
     HRESULT hr = webview->clearCookies();
     result->Success(flutter::EncodableValue(SUCCEEDED(hr)));
 
+  } else if (method_call.method_name().compare("setCookie") == 0) {
+    auto name = std::get<std::string>(arguments[flutter::EncodableValue("name")]);
+    auto value = std::get<std::string>(arguments[flutter::EncodableValue("value")]);
+    auto domain = std::get<std::string>(arguments[flutter::EncodableValue("domain")]);
+    auto path = std::get<std::string>(arguments[flutter::EncodableValue("path")]);
+
+    HRESULT hr = webview->setCookie(utf8ToUtf16(name).c_str(), utf8ToUtf16(value).c_str(),
+                                    utf8ToUtf16(domain).c_str(), utf8ToUtf16(path).c_str());
+    result->Success(flutter::EncodableValue(SUCCEEDED(hr)));
+
+  } else if (method_call.method_name().compare("getCookies") == 0) {
+    auto uri = std::get<std::string>(arguments[flutter::EncodableValue("uri")]);
+    std::shared_ptr<flutter::MethodResult<flutter::EncodableValue>> shared_result = std::move(result);
+    webview->getCookies(utf8ToUtf16(uri).c_str(), [shared_result](std::string cookiesJson) {
+      shared_result->Success(flutter::EncodableValue(cookiesJson));
+    });
+
   } else if (method_call.method_name().compare("requestFocus") == 0) {
     webview->requestFocus(true);
     result->Success();

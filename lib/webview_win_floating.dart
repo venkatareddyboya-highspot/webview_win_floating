@@ -604,6 +604,38 @@ class WinWebViewController {
     await WebviewWinFloatingPlatform.instance.clearCookies(_webviewId);
   }
 
+  Future<bool> setCookie(
+    String name,
+    String value,
+    String domain,
+    String path,
+  ) async {
+    await _initFuture;
+    return await WebviewWinFloatingPlatform.instance.setCookie(
+      _webviewId,
+      name,
+      value,
+      domain,
+      path,
+    );
+  }
+
+  Future<List<Map<String, String>>> getCookies(String uri) async {
+    await _initFuture;
+    final cookiesJson = await WebviewWinFloatingPlatform.instance.getCookies(
+      _webviewId,
+      uri,
+    );
+    try {
+      final cookiesList = json.decode(cookiesJson) as List;
+      return cookiesList
+          .map((cookie) => Map<String, String>.from(cookie as Map))
+          .toList();
+    } catch (e) {
+      return [];
+    }
+  }
+
   //
 
   Future<String?> currentUrl() {
