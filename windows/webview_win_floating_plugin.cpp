@@ -96,6 +96,13 @@ void WebviewWinFloatingPlugin::createWebview(const flutter::MethodCall<flutter::
     arguments[flutter::EncodableValue("isNewWindow")] = flutter::EncodableValue(isNewWindow);
     m_MethodChannel->InvokeMethod("onNavigationRequest", std::make_unique<flutter::EncodableValue>(arguments));
   };
+
+  params.onNewWindowRequested = [=](std::string url) -> void {
+    flutter::EncodableMap arguments;
+    arguments[flutter::EncodableValue("webviewId")] = flutter::EncodableValue(webviewId);
+    arguments[flutter::EncodableValue("url")] = flutter::EncodableValue(url);
+    m_MethodChannel->InvokeMethod("onNewWindowRequested", std::make_unique<flutter::EncodableValue>(arguments));
+  };
   
   params.onPageStarted = [=](std::string url) -> void {
     flutter::EncodableMap arguments;
@@ -233,6 +240,42 @@ void WebviewWinFloatingPlugin::HandleMethodCall(
     auto requestId = std::get<int>(arguments[flutter::EncodableValue("requestId")]);
     auto isAllowed = std::get<bool>(arguments[flutter::EncodableValue("isAllowed")]);
     webview->allowNavigationRequest(requestId, isAllowed);
+    result->Success();
+  } else if (method_call.method_name().compare("setHasNewWindowDelegate") == 0) {
+    auto hasDelegate = std::get<bool>(arguments[flutter::EncodableValue("hasDelegate")]);
+    webview->setHasNewWindowDelegate(hasDelegate);
+    result->Success();
+  } else if (method_call.method_name().compare("setNavigationRules") == 0) {
+    // Parse allowed hosts
+    std::vector<std::string> allowedHosts;
+    auto allowedHostsList = std::get<flutter::EncodableList>(arguments[flutter::EncodableValue("allowedHosts")]);
+    for (const auto& host : allowedHostsList) {
+      allowedHosts.push_back(std::get<std::string>(host));
+    }
+
+    // Parse blocked hosts
+    std::vector<std::string> blockedHosts;
+    auto blockedHostsList = std::get<flutter::EncodableList>(arguments[flutter::EncodableValue("blockedHosts")]);
+    for (const auto& host : blockedHostsList) {
+      blockedHosts.push_back(std::get<std::string>(host));
+    }
+
+    // Parse blocked patterns
+    std::vector<std::string> blockedPatterns;
+    auto blockedPatternsList = std::get<flutter::EncodableList>(arguments[flutter::EncodableValue("blockedPatterns")]);
+    for (const auto& pattern : blockedPatternsList) {
+      blockedPatterns.push_back(std::get<std::string>(pattern));
+    }
+
+    // Create onUrlBlocked callback that notifies Dart (per-instance via webviewId)
+    auto onUrlBlocked = [this, webviewId](std::string url) -> void {
+      flutter::EncodableMap arguments;
+      arguments[flutter::EncodableValue("webviewId")] = flutter::EncodableValue(webviewId);
+      arguments[flutter::EncodableValue("url")] = flutter::EncodableValue(url);
+      m_MethodChannel->InvokeMethod("onUrlBlocked", std::make_unique<flutter::EncodableValue>(arguments));
+    };
+
+    webview->setNavigationRules(allowedHosts, blockedHosts, blockedPatterns, onUrlBlocked);
     result->Success();
   } else if (method_call.method_name().compare("updateBounds") == 0) {
     RECT bounds;

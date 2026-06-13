@@ -2,6 +2,7 @@
 
 #include <string>
 #include <functional>
+#include <vector>
 
 #include <windows.h>
 
@@ -11,12 +12,14 @@
 //#include <WebView2.h>
  
 typedef std::function<void(std::string url, int kind, int deferralId)> OnAskPermissionFunc;
+typedef std::function<void(std::string url)> OnUrlBlockedFunc;
 
 class MyWebView;
 class MyWebViewCreateParams {
 public:
 	std::function<void(HRESULT, MyWebView*)> onCreated;
     std::function<void(int requestId, std::string url, bool isNewWindow)> onNavigationRequest;
+	std::function<void(std::string url)> onNewWindowRequested;
 	std::function<void(std::string url)> onPageStarted;
 	std::function<void(std::string url)> onPageFinished;
 	std::function<void(std::string url, int errCode)> onHttpError;	
@@ -44,6 +47,12 @@ public:
 
 	virtual void setHasNavigationDecision(bool hasNavigationDecision) = 0;
 	virtual void allowNavigationRequest(int requestId, bool isAllowed) = 0;	
+	virtual void setHasNewWindowDelegate(bool hasDelegate) = 0;
+	virtual void setNavigationRules(
+		const std::vector<std::string>& allowedHosts,
+		const std::vector<std::string>& blockedHosts,
+		const std::vector<std::string>& blockedPatterns,
+		OnUrlBlockedFunc onUrlBlocked) = 0;
 
 	virtual HRESULT loadUrl(LPCWSTR url) = 0;
 	virtual HRESULT loadHtmlString(LPCWSTR html) = 0;

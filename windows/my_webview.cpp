@@ -5,6 +5,9 @@
 #include <map>
 #include <utility> // std::pair
 #include <regex>
+#include <vector>
+#include <algorithm>
+#include <cctype>
 
 #include <windows.h>
 #include <WebView2.h>
@@ -47,6 +50,12 @@ public:
 
 	void setHasNavigationDecision(bool hasNavigationDecision);
     void allowNavigationRequest(int requestId, bool isAllowed);
+    void setHasNewWindowDelegate(bool hasDelegate) override;
+    void setNavigationRules(
+        const std::vector<std::string>& allowedHosts,
+        const std::vector<std::string>& blockedHosts,
+        const std::vector<std::string>& blockedPatterns,
+        OnUrlBlockedFunc onUrlBlocked) override;
 
     HRESULT loadUrl(PCWSTR url);
     HRESULT loadHtmlString(PCWSTR html);
@@ -100,6 +109,17 @@ private:
     std::map<int, std::wstring> m_navigationRequestMap;
     int m_lastNavigationRequestId = 0;
   	bool m_hasNavigationDecision = false;
+    bool m_hasNewWindowCallback = false;
+
+    // Navigation rules for synchronous URL blocking (per-instance)
+    std::vector<std::string> m_allowedHosts;
+    std::vector<std::string> m_blockedHosts;
+    std::vector<std::regex> m_blockedPatterns;
+    OnUrlBlockedFunc m_onUrlBlocked;
+    bool m_hasNavigationRules = false;
+
+    bool shouldBlockUrl(const std::string& url);
+    std::string extractHost(const std::string& url);
 
     std::wstring nowLoadingUrl;
 
@@ -206,37 +226,81 @@ MyWebViewImpl::MyWebViewImpl(HWND hWnd,
                             }
 
                             bool userInitiated = true;
-                            if (m_isNowGoBackForward
-                                || isPostMethod == TRUE
-                                || isRedirected == TRUE
-                                || nowLoadingUrl.compare(url.get()) == 0
-                                || utf16Url.rfind(L"data:text/html;", 0) == 0) {
-                                // is triggered by loadUrl() or loadHtmlString(), not user initiated
-                                // or is triggered by goBack / goForward
-                                // then we don't ask client Dart code (onNavigationRequest) to allow/prevent loading url
-                                nowLoadingUrl = L"";
+                            bool skipRulesCheck = false;
+
+                            // Only skip rules for goBack/goForward and data:text/html
+                            // NOTE: We don't skip for nowLoadingUrl match because:
+                            // - With sync rules, we don't cancel+loadUrl, so no infinite loop
+                            // - Skipping for nowLoadingUrl would let file:// URLs through
+                            if (m_isNowGoBackForward) {
+                                // goBack/goForward - allow history navigation
                                 m_isNowGoBackForward = false;
+                                userInitiated = false;
+                                skipRulesCheck = true;
+                            }
+
+                            if (utf16Url.rfind(L"data:text/html;", 0) == 0) {
+                                // loadHtmlString - no URL to check
+                                userInitiated = false;
+                                skipRulesCheck = true;
+                            }
+
+                            if (nowLoadingUrl.compare(url.get()) == 0) {
+                                // Programmatic loadUrl() - still check rules but mark as not user-initiated
+                                nowLoadingUrl = L"";
+                                userInitiated = false;
+                                // DON'T set skipRulesCheck - we want to check rules!
+                            }
+
+                            if (isPostMethod == TRUE || isRedirected == TRUE) {
+                                // POST forms and redirects are not user-initiated
+                                // but we still want to check rules for them
                                 userInitiated = false;
                             }
 
-
-                            if (m_hasNavigationDecision && userInitiated) {
-                                // for a user-initiated request,
-                                // cancel the request first, 
-                                // and ask dart code to grant/deny this request
-                                // if dart code deny, nothing happen
-                                // if dart code grant, call loadUrl() to load url again
-                                // Windows WebView2 doesn't support asynchronous decision,
-                                // so we must cancel the request here, before dart code make decision
-                                args->put_Cancel(TRUE);
-                                __sendOnNavigationRequest(utf16Url, utf8Url, false);
-                            } else {
-                                // for a non-user-initiated request,
-                                // just allow the request, and notify dart code onPageStarted()
+                            // RULES-BASED BLOCKING: Check navigation rules synchronously (no Dart roundtrip)
+                            // This preserves navigation history since we don't need async decision
+                            if (m_hasNavigationRules && !skipRulesCheck) {
+                                if (shouldBlockUrl(utf8Url)) {
+                                    // Block the navigation synchronously
+                                    args->put_Cancel(TRUE);
+                                    // Notify Dart about blocked URL (fire-and-forget, no response needed)
+                                    if (m_onUrlBlocked) {
+                                        m_onUrlBlocked(utf8Url);
+                                    }
+                                    return S_OK;
+                                }
+                                // URL passed rules, allow navigation - history will be preserved!
                                 UINT64 navigationId;
                                 args->get_NavigationId(&navigationId);
                                 __sendOnPageStarted(utf8Url, navigationId);
-                            }                            
+                            }
+                            // LEGACY BEHAVIOR (author): async onNavigationRequest via cancel+reload
+                            else if (!m_hasNavigationRules) {
+                                if (m_hasNavigationDecision && userInitiated) {
+                                    // for a user-initiated request,
+                                    // cancel the request first,
+                                    // and ask dart code to grant/deny this request
+                                    // if dart code deny, nothing happen
+                                    // if dart code grant, call loadUrl() to load url again
+                                    // Windows WebView2 doesn't support asynchronous decision,
+                                    // so we must cancel the request here, before dart code make decision
+                                    args->put_Cancel(TRUE);
+                                    __sendOnNavigationRequest(utf16Url, utf8Url, false);
+                                } else {
+                                    // for a non-user-initiated request,
+                                    // just allow the request, and notify dart code onPageStarted()
+                                    UINT64 navigationId;
+                                    args->get_NavigationId(&navigationId);
+                                    __sendOnPageStarted(utf8Url, navigationId);
+                                }
+                            }
+                            // Rules are set but skipRulesCheck is true (goBack/data:text/html)
+                            else {
+                                UINT64 navigationId;
+                                args->get_NavigationId(&navigationId);
+                                __sendOnPageStarted(utf8Url, navigationId);
+                            }
                             return S_OK;
                         }).Get(), NULL);
 
@@ -248,7 +312,14 @@ MyWebViewImpl::MyWebViewImpl(HWND hWnd,
                             auto utf16Url = std::wstring(url.get());
                             auto utf8Url = utf8_encode(utf16Url);
 
-                            if (m_hasNavigationDecision) {
+                            if (m_hasNewWindowCallback) {
+                                // dedicated new-window callback set: deliver URL to Dart and
+                                // let the app open a new window. Do NOT load in the current view.
+                                // This is independent of onNavigationRequest, so JS history.back() keeps working.
+                                if (m_params.onNewWindowRequested) {
+                                    m_params.onNewWindowRequested(utf8Url);
+                                }
+                            } else if (m_hasNavigationDecision) {
                                 __sendOnNavigationRequest(utf16Url, utf8Url, true);
                             } else {
                                 loadUrl(url.get());
@@ -491,6 +562,118 @@ MyWebViewImpl::~MyWebViewImpl()
 void MyWebViewImpl::setHasNavigationDecision(bool hasNavigationDecision)
 {
     m_hasNavigationDecision = hasNavigationDecision;
+}
+
+void MyWebViewImpl::setHasNewWindowDelegate(bool hasDelegate)
+{
+    m_hasNewWindowCallback = hasDelegate;
+}
+
+void MyWebViewImpl::setNavigationRules(
+    const std::vector<std::string>& allowedHosts,
+    const std::vector<std::string>& blockedHosts,
+    const std::vector<std::string>& blockedPatterns,
+    OnUrlBlockedFunc onUrlBlocked)
+{
+    m_allowedHosts = allowedHosts;
+    m_blockedHosts = blockedHosts;
+    m_onUrlBlocked = onUrlBlocked;
+
+    m_blockedPatterns.clear();
+    for (const auto& pattern : blockedPatterns) {
+        try {
+            m_blockedPatterns.push_back(std::regex(pattern, std::regex_constants::icase));
+        } catch (const std::regex_error& e) {
+            std::cout << "[webview] Invalid regex pattern: " << pattern << " - " << e.what() << std::endl;
+        }
+    }
+
+    m_hasNavigationRules = !allowedHosts.empty() || !blockedHosts.empty() || !blockedPatterns.empty();
+    std::cout << "[webview] Navigation rules set: " << allowedHosts.size() << " allowed, "
+              << blockedHosts.size() << " blocked, " << blockedPatterns.size() << " patterns" << std::endl;
+}
+
+std::string MyWebViewImpl::extractHost(const std::string& url)
+{
+    // Simple host extraction from URL
+    std::string host;
+    size_t start = url.find("://");
+    if (start != std::string::npos) {
+        start += 3;
+        size_t end = url.find("/", start);
+        if (end == std::string::npos) {
+            end = url.find("?", start);
+        }
+        if (end == std::string::npos) {
+            end = url.length();
+        }
+        host = url.substr(start, end - start);
+
+        // Remove port if present
+        size_t portPos = host.find(":");
+        if (portPos != std::string::npos) {
+            host = host.substr(0, portPos);
+        }
+    }
+    return host;
+}
+
+bool MyWebViewImpl::shouldBlockUrl(const std::string& url)
+{
+    if (!m_hasNavigationRules) {
+        return false; // No rules set, allow all
+    }
+
+    std::cout << "[webview] Checking URL: " << url << std::endl;
+
+    // 1. Check blocked patterns first (e.g., file://, /offline)
+    for (const auto& pattern : m_blockedPatterns) {
+        if (std::regex_search(url, pattern)) {
+            std::cout << "[webview] URL blocked by pattern: " << url << std::endl;
+            return true; // BLOCKED
+        }
+    }
+
+    // Extract host for host-based rules
+    std::string host = extractHost(url);
+
+    // Convert host to lowercase for comparison
+    if (!host.empty()) {
+        std::transform(host.begin(), host.end(), host.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+    }
+
+    // 2. Check blocked hosts
+    for (const auto& blockedHost : m_blockedHosts) {
+        std::string lowerBlocked = blockedHost;
+        std::transform(lowerBlocked.begin(), lowerBlocked.end(), lowerBlocked.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+        if (!host.empty() && host.find(lowerBlocked) != std::string::npos) {
+            std::cout << "[webview] URL blocked by host rule: " << url << std::endl;
+            return true; // BLOCKED
+        }
+    }
+
+    // 3. Check allowed hosts - if defined, URL must match one of them
+    if (!m_allowedHosts.empty()) {
+        // If host is empty (e.g., file:// URLs), block it
+        if (host.empty()) {
+            std::cout << "[webview] URL blocked (cannot parse host): " << url << std::endl;
+            return true; // BLOCKED - can't verify against allowed hosts
+        }
+
+        for (const auto& allowedHost : m_allowedHosts) {
+            std::string lowerAllowed = allowedHost;
+            std::transform(lowerAllowed.begin(), lowerAllowed.end(), lowerAllowed.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+            if (host.find(lowerAllowed) != std::string::npos) {
+                return false; // ALLOWED
+            }
+        }
+
+        // Host not in allowed list
+        std::cout << "[webview] URL blocked (not in allowed hosts): " << url << std::endl;
+        return true; // BLOCKED
+    }
+
+    return false; // No allowed hosts defined, allow by default
 }
 
 void MyWebViewImpl::__sendOnNavigationRequest(std::wstring utf16Url, std::string utf8Url, bool isNewWindow) {

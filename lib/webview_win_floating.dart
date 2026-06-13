@@ -14,6 +14,10 @@ import 'package:webview_win_floating/webview_plugin.dart';
 import 'layout_notify_widget.dart';
 import 'webview_win_floating_platform_interface.dart';
 
+/// Signature for a callback that reports a new-window / new-tab request
+/// (e.g. target="_blank" or window.open). Windows-only.
+typedef NewWindowRequestedCallback = void Function(String url);
+
 class WinNavigationDelegate {
   final NavigationRequestCallback? onNavigationRequest;
   final PageEventCallback? onPageStarted;
@@ -28,6 +32,13 @@ class WinNavigationDelegate {
   final FullScreenChangedCallback? onFullScreenChanged;
   final HistoryChangedCallback? onHistoryChanged;
 
+  /// Windows-only: invoked when the page requests a new window/tab.
+  /// When provided, the requested URL is delivered here instead of being
+  /// loaded in the current view, and it does NOT enable the
+  /// onNavigationRequest cancel+reload path (so JS history.back() keeps
+  /// working). The app decides what to do (e.g. open a new window).
+  final NewWindowRequestedCallback? onNewWindowRequested;
+
   WinNavigationDelegate({
     this.onNavigationRequest,
     this.onPageStarted,
@@ -40,6 +51,7 @@ class WinNavigationDelegate {
     this.onPageTitleChanged,
     this.onFullScreenChanged,
     this.onHistoryChanged,
+    this.onNewWindowRequested,
   });
 }
 
@@ -207,6 +219,9 @@ class _WinWebViewWidgetState extends State<WinWebViewWidget> {
 
 int _gLastWebViewId = 0;
 
+/// Signature for callbacks that report a URL blocked by navigation rules.
+typedef UrlBlockedCallback = void Function(String url);
+
 class WinWebViewController {
   final _webviewId = ++_gLastWebViewId;
   late Future<bool> _initFuture;
@@ -217,6 +232,7 @@ class WinWebViewController {
   Color? _backgroundColor;
   late final WindowsWebViewControllerCreationParams params;
   void Function(WinWebViewPermissionRequest request)? _onPermissionRequest;
+  UrlBlockedCallback? _onUrlBlocked;
 
   static final Finalizer<int> _finalizer = Finalizer((id) {
     log("webview controller finalizer: $id");
@@ -260,11 +276,53 @@ class WinWebViewController {
 
     bool hasNavigationDecision =
         _navigationDelegate.onNavigationRequest != null;
+    bool hasNewWindowDelegate =
+        _navigationDelegate.onNewWindowRequested != null;
     await _initFuture;
     await WebviewWinFloatingPlatform.instance.setHasNavigationDecision(
       _webviewId,
       hasNavigationDecision,
     );
+    await WebviewWinFloatingPlatform.instance.setHasNewWindowDelegate(
+      _webviewId,
+      hasNewWindowDelegate,
+    );
+  }
+
+  /// Windows-only: sets synchronous, native-side URL blocking rules.
+  ///
+  /// Unlike [WinNavigationDelegate.onNavigationRequest], allowed URLs proceed
+  /// without a cancel+reload, so navigation history (including JS
+  /// history.back()) is preserved. Rules also apply to redirects and
+  /// programmatic loads.
+  ///
+  /// [allowedHosts] host patterns to allow (e.g. ["highspot.com"]). If
+  /// non-empty, a URL must match one of these to be allowed.
+  /// [blockedHosts] host patterns to explicitly block.
+  /// [blockedPatterns] regex patterns to block (case-insensitive).
+  /// [onUrlBlocked] fire-and-forget notification when a URL is blocked.
+  Future<void> setNavigationRules({
+    List<String> allowedHosts = const [],
+    List<String> blockedHosts = const [],
+    List<String> blockedPatterns = const [],
+    UrlBlockedCallback? onUrlBlocked,
+  }) async {
+    _onUrlBlocked = onUrlBlocked;
+    await _initFuture;
+    await WebviewWinFloatingPlatform.instance.setNavigationRules(
+      _webviewId,
+      allowedHosts: allowedHosts,
+      blockedHosts: blockedHosts,
+      blockedPatterns: blockedPatterns,
+    );
+  }
+
+  void notifyOnUrlBlocked_(String url) {
+    _onUrlBlocked?.call(url);
+  }
+
+  void notifyOnNewWindowRequested_(String url) {
+    _navigationDelegate.onNewWindowRequested?.call(url);
   }
 
   Future<void> setJavaScriptMode(JavaScriptMode javaScriptMode) async {

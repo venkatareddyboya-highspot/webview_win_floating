@@ -59,6 +59,19 @@ abstract class WebviewWinFloatingPlatform extends PlatformInterface {
     throw UnimplementedError();
   }
 
+  Future<void> setHasNewWindowDelegate(int webviewId, bool hasDelegate) {
+    throw UnimplementedError();
+  }
+
+  Future<void> setNavigationRules(
+    int webviewId, {
+    required List<String> allowedHosts,
+    required List<String> blockedHosts,
+    required List<String> blockedPatterns,
+  }) {
+    throw UnimplementedError();
+  }
+
   Future<void> updateBounds(
     int webviewId,
     Offset offset,
